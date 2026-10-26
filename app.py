@@ -233,6 +233,21 @@ VOICE_MAP = {
     "v19": "en-GB-SoniaNeural"
 }
 
+PRESET_CLONE_VOICES = {
+    "RecappianM": {
+        "path": os.path.join("voice_samples", "RecappianM.wav"),
+        "transcript": "ရေနံကုမ္ပဏီတစ်ခုက ရေနံတွင်းတူးနေတုန်း ရေနံကြောဆီမရောက်ခင် မြစ်လို စီးဆင်းနေတဲ့ ရေကြောတစ်ခုကို ရောက်သွားပါတယ်။ ရေရှိရင် ဇီဝဂေဟစနစ်လည်း ရှိတတ်တာ သဘာဝပဲမို့ ရေနံတွင်းထဲကနေ ထူးထူးဆန်းဆန်း သက်ရှိတွေ ထွက်လာပါတယ်။",
+    },
+    "KgSatNg": {
+        "path": os.path.join("voice_samples", "KgSatNg.wav"),
+        "transcript": "အားလုံးပဲ မင်္ဂလာညချမ်းလေးပါ။ Myanmar Ghost ENT channel ကနေ ပြန်လည်ကြိုဆိုပါတယ်ခင်ဗျာ။ ကျွန်တော် ဒီနေ့ညတော့ စာရေးဆရာ တာတေရဲ့ စိတ်ဝင်စားဖွယ်ရာ ပရလောကဇာတ်လမ်းတွေကို စုစည်းပြီး တာတေပေါင်းချုပ် အပိုင်း 29 အနေနဲ့ ဆက်လက်တင်ဆက်ပေးသွားမှာပဲ ဖြစ်ပါတယ်ခင်ဗျာ။",
+    },
+    "MinMinHtun": {
+        "path": os.path.join("voice_samples", "MinMinHtun.wav"),
+        "transcript": "Real Madrid ကတော့ ကီလီယံ အမ်ဘာပေရဲ့ နှစ်ဂိုးနဲ့ 1-2ဆိုတဲ့ ရလဒ်နဲ့ ကျွန်တော်တို့ ဒါ ဘာစီလိုနာရဲ့ကွင်းမှာ အနိုင်ယူသွားတယ်။",
+    },
+}
+
 ENGLISH_VOICE_IDS = {"v4", "v5", "v6", "v7", "v8", "v15", "v16", "v17", "v18", "v19"}
 ENGLISH_VOICE_LABELS = {
     "v4": "William (AU)",
@@ -693,6 +708,11 @@ def main():
             ).strip()
         else:
             clone_backend_token = ""
+        preset_clone_name = st.selectbox(
+            "Fixed voice sample" if is_en else "Fix ထည့်ထားတဲ့ voice sample",
+            ["None"] + list(PRESET_CLONE_VOICES.keys()),
+            key="preset_clone_name",
+        )
         clone_reference_audio = st.file_uploader(
             "Reference voice (WAV/MP3/FLAC)" if is_en else "Reference အသံ (WAV/MP3/FLAC)",
             type=["wav", "mp3", "flac", "m4a"],
@@ -707,8 +727,12 @@ def main():
             "Use this cloned voice for the video" if is_en else "ဒီ clone အသံကို ဗီဒီယိုမှာသုံးမယ်",
             key="use_custom_voice",
         )
-        if use_custom_voice:
-            if clone_reference_audio is None:
+        preset_clone_selected = preset_clone_name != "None"
+        custom_voice_active = use_custom_voice or preset_clone_selected
+        if custom_voice_active:
+            if preset_clone_selected:
+                st.success(f"{preset_clone_name} fixed voice ကို ရွေးထားပါတယ်။")
+            elif clone_reference_audio is None:
                 st.info("Reference audio တင်ပြီး checkbox ကို ပြန်ရွေးပါ။")
             elif not clone_reference_text.strip():
                 st.info("Reference audio ထဲက စာသားအတိအကျ ထည့်ပါ။")
@@ -754,7 +778,13 @@ def main():
                         st.rerun()
 
     # Map selected to voice_id, style_data, emotion_data
-    voice_id = "custom_voxcpm2" if use_custom_voice else st.session_state.sel_voice
+    if preset_clone_selected:
+        effective_reference_text = PRESET_CLONE_VOICES[preset_clone_name]["transcript"]
+        effective_reference_upload = None
+    else:
+        effective_reference_text = clone_reference_text
+        effective_reference_upload = clone_reference_audio
+    voice_id = "custom_voxcpm2" if custom_voice_active else st.session_state.sel_voice
     style_data = next((s for s in RECAP_STYLES if s["id"] == st.session_state.sel_style), RECAP_STYLES[0])
     emotion_data = next((e for e in EMOTIONS if e["id"] == st.session_state.sel_emotion), EMOTIONS[0])
 
@@ -793,14 +823,17 @@ def main():
         if not text_input or not video_file:
             st.error(label_error)
             return
-        if use_custom_voice and (clone_reference_audio is None or not clone_reference_text.strip()):
+        if custom_voice_active and (effective_reference_upload is None and not preset_clone_selected):
             st.error(
                 "Reference audio နဲ့ reference transcript နှစ်ခုလုံးလိုပါတယ်။"
                 if not is_en else
                 "Custom voice requires reference audio and its exact transcript."
             )
             return
-        if use_custom_voice and not voxcpm_available() and not clone_backend_url:
+        if custom_voice_active and not effective_reference_text.strip():
+            st.error("Reference transcript မရှိပါ။" if not is_en else "Reference transcript is missing.")
+            return
+        if custom_voice_active and not voxcpm_available() and not clone_backend_url:
             st.error(
                 "Remote Colab VoxCPM2 endpoint URL ထည့်ပါ။"
                 if not is_en else
@@ -816,9 +849,9 @@ def main():
             "voice_id": voice_id,
             "final_speed": final_speed,
             "final_pitch": final_pitch,
-            "reference_text": clone_reference_text if use_custom_voice else "",
-            "backend_url": clone_backend_url if use_custom_voice else "",
-            "backend_token": clone_backend_token if use_custom_voice else "",
+            "reference_text": effective_reference_text if custom_voice_active else "",
+            "backend_url": clone_backend_url if custom_voice_active else "",
+            "backend_token": clone_backend_token if custom_voice_active else "",
 
         }
         st.session_state.output_basename = make_output_basename(video_file.name)
@@ -838,10 +871,17 @@ def main():
             os.makedirs(d, exist_ok=True)
 
         reference_audio_path = None
-        if use_custom_voice and clone_reference_audio is not None:
+        if custom_voice_active:
             reference_audio_path = os.path.join(st.session_state.dirs["audio"], "voice_reference")
-            with open(reference_audio_path, "wb") as f:
-                f.write(clone_reference_audio.getbuffer())
+            if preset_clone_selected:
+                source_path = PRESET_CLONE_VOICES[preset_clone_name]["path"]
+                if not os.path.exists(source_path):
+                    raise FileNotFoundError(f"Preset voice sample not found: {source_path}")
+                shutil.copyfile(source_path, reference_audio_path + ".wav")
+                reference_audio_path += ".wav"
+            else:
+                with open(reference_audio_path, "wb") as f:
+                    f.write(effective_reference_upload.getbuffer())
             st.session_state.inputs["reference_audio"] = reference_audio_path
 
         video_path = os.path.join(st.session_state.dirs["video"], "input_video.mp4")

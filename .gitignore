@@ -139,6 +139,7 @@ final_output.mp4
 *.avi
 *.mp3
 *.wav
+!voice_samples/*.wav
 
 # IDE
 .vscode/

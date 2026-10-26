@@ -7,6 +7,7 @@ A powerful Streamlit application that combines text processing with video editin
 ### 🎤 Voice & Audio Settings
 - **14 Different Voices**: Choose from a variety of voice options with different genders and characteristics
 - **Optional VoxCPM2 Voice Clone**: Upload a permitted 3–10 second reference clip and use the cloned voice for the video
+- **Fixed sample presets**: RecappianM, KgSatNg, and MinMinHtun are available in the Custom Voice Clone panel
 - **Recap Styles**: Apply different vocal styles (Normal, Pitch variations, Speed combinations)
 - **Emotions**: Select from 11 different emotional tones (Exciting, Calm, Professional, Narrative, Happy, Serious, Whisper, Sad, Sarcastic, Angry, Fear)
 - **TTS Engine**: Uses `edge_tts` for high-quality audio generation
@@ -60,6 +61,10 @@ reference recording, enter the exact words spoken in that recording, and tick
 the checkbox before starting video processing. The model is loaded lazily and
 cached in memory. The app does not send the reference audio to a third-party
 API; it runs the model on the machine hosting the app.
+
+The panel also includes the fixed `RecappianM`, `KgSatNg`, and `MinMinHtun`
+sample presets. Select one of them to use its bundled WAV reference and
+transcript automatically.
 
 For the recommended low-memory setup, keep Streamlit on the 500 MB host and
 run only `voice_clone_server.py` on a free Colab T4. The included
