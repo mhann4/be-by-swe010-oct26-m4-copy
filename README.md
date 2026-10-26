@@ -76,6 +76,20 @@ browser; the tablet itself does not run the model.
 The Colab runtime and tunnel URL are temporary and may disconnect. This is for
 personal use and is not an always-on production API.
 
+### Streamlit Secrets
+
+The endpoint and token can be stored in Streamlit Cloud under **App settings →
+Secrets**. The app reads these keys automatically:
+
+```toml
+VOXCPM_ENDPOINT = "https://your-tunnel.trycloudflare.com"
+VOXCPM_TOKEN = "your-token-without-the-VOXCPM_TOKEN-prefix"
+```
+
+The token is sensitive; do not commit it to GitHub or paste it into the source
+code. If these secrets are set, the UI fields are pre-filled and can be left
+unchanged.
+
 3. Ensure FFmpeg is installed:
 ```bash
 # On Ubuntu/Debian

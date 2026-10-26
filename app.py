@@ -91,6 +91,14 @@ EMOTIONS = get_emotions()
 st.set_page_config(page_title="Video & Text Processor", layout="wide")
 
 
+def get_streamlit_secret(name, default=""):
+    """Read an optional Streamlit secret without breaking local development."""
+    try:
+        return str(st.secrets.get(name, default)).strip()
+    except Exception:
+        return default
+
+
 # ─────────────────────────────────────────────
 # SRT Subtitle Generator
 # ─────────────────────────────────────────────
@@ -686,7 +694,8 @@ def main():
                         st.rerun()
 
     # --- Optional VoxCPM2 custom voice ---
-    clone_backend_url = ""
+    clone_backend_url = get_streamlit_secret("VOXCPM_ENDPOINT")
+    clone_backend_token = get_streamlit_secret("VOXCPM_TOKEN")
     with st.expander("🧬 Custom Voice Clone (VoxCPM2)" if is_en else "🧬 ကိုယ်ပိုင်အသံ Clone (VoxCPM2)"):
         st.caption(
             "Runs on the GPU host where this app is deployed. A 3–10 second reference "
@@ -702,17 +711,19 @@ def main():
             )
             clone_backend_url = st.text_input(
                 "Remote Colab VoxCPM2 endpoint (optional)" if is_en else "Remote Colab VoxCPM2 endpoint (optional)",
+                value=clone_backend_url,
                 placeholder="https://your-colab-tunnel.example.com",
                 help="Paste the temporary public URL from the companion Colab backend.",
                 key="clone_backend_url",
             ).strip()
             clone_backend_token = st.text_input(
                 "Remote backend token (optional)" if is_en else "Remote backend token (optional)",
+                value=clone_backend_token,
                 type="password",
                 key="clone_backend_token",
             ).strip()
-        else:
-            clone_backend_token = ""
+            if clone_backend_token:
+                st.caption("Remote endpoint/token loaded from Streamlit Secrets.")
         preset_clone_name = st.selectbox(
             "Fixed voice sample" if is_en else "Fix ထည့်ထားတဲ့ voice sample",
             ["None"] + list(PRESET_CLONE_VOICES.keys()),
