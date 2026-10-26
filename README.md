@@ -6,6 +6,7 @@ A powerful Streamlit application that combines text processing with video editin
 
 ### 🎤 Voice & Audio Settings
 - **14 Different Voices**: Choose from a variety of voice options with different genders and characteristics
+- **Optional VoxCPM2 Voice Clone**: Upload a permitted 3–10 second reference clip and use the cloned voice for the video
 - **Recap Styles**: Apply different vocal styles (Normal, Pitch variations, Speed combinations)
 - **Emotions**: Select from 11 different emotional tones (Exciting, Calm, Professional, Narrative, Happy, Serious, Whisper, Sad, Sarcastic, Angry, Fear)
 - **TTS Engine**: Uses `edge_tts` for high-quality audio generation
@@ -43,6 +44,26 @@ cd streamlit-video-processor
 ```bash
 pip install -r requirements.txt
 ```
+
+### Optional GPU voice cloning
+
+The normal Edge-TTS mode works without a GPU. To enable the **Custom Voice Clone
+(VoxCPM2)** panel, run the app on a CUDA GPU host with about 8 GB of VRAM and
+install the optional dependencies:
+
+```bash
+pip install -r requirements-gpu.txt
+```
+
+Then open the **Custom Voice Clone (VoxCPM2)** panel, upload a 3–10 second
+reference recording, enter the exact words spoken in that recording, and tick
+the checkbox before starting video processing. The model is loaded lazily and
+cached in memory. The app does not send the reference audio to a third-party
+API; it runs the model on the machine hosting the app.
+
+For a free Colab setup, use a T4 runtime and run this repository there. The
+runtime and public URL are temporary and may disconnect. A tablet can control
+the app through the browser, but the tablet itself does not run the model.
 
 3. Ensure FFmpeg is installed:
 ```bash
@@ -198,6 +219,7 @@ streamlit-video-processor/
 
 - [ ] Support for more video formats (WebM, MOV, etc.)
 - [ ] Custom voice creation
+- [x] VoxCPM2 custom voice cloning on an optional CUDA host
 - [ ] Real-time preview
 - [ ] Batch processing
 - [ ] Cloud storage integration

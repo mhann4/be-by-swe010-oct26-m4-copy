@@ -10,6 +10,7 @@ import shutil
 import gc
 import threading
 import base64
+from voice_clone import generate_voxcpm2, voxcpm_available
 # ─────────────────────────────────────────────
 # Timer Utility
 # ─────────────────────────────────────────────
@@ -186,8 +187,23 @@ def make_output_basename(uploaded_name):
 # TTS Generation
 # ─────────────────────────────────────────────
 
-async def generate_all_tts(paragraphs, audio_dir, voice_id, speed, pitch):
+async def generate_all_tts(paragraphs, audio_dir, voice_id, speed, pitch,
+                           reference_audio=None, reference_text=""):
     """Generate TTS for all paragraphs in parallel."""
+    if voice_id == "custom_voxcpm2":
+        if not reference_audio:
+            raise ValueError("Custom voice reference audio is missing.")
+        # Keep VoxCPM2 generation sequential: one GPU model is shared by all
+        # paragraphs and concurrent calls can exhaust VRAM or corrupt output.
+        for i, paragraph in enumerate(paragraphs):
+            generate_voxcpm2(
+                paragraph,
+                reference_audio,
+                reference_text,
+                os.path.join(audio_dir, f"audio_{i}.wav"),
+            )
+        return
+
     tasks = []
     for i, paragraph in enumerate(paragraphs):
         tasks.append(generate_tts_async(paragraph, os.path.join(audio_dir, f"audio_{i}.mp3"), voice_id, speed, pitch))
@@ -648,6 +664,42 @@ def main():
                         st.session_state.sel_voice = voice_ids[idx]
                         st.rerun()
 
+    # --- Optional VoxCPM2 custom voice ---
+    with st.expander("🧬 Custom Voice Clone (VoxCPM2)" if is_en else "🧬 ကိုယ်ပိုင်အသံ Clone (VoxCPM2)"):
+        st.caption(
+            "Runs on the GPU host where this app is deployed. A 3–10 second reference "
+            "clip and its exact transcript work best."
+            if is_en else
+            "ဒီ feature က app run နေတဲ့ GPU host ပေါ်မှာ VoxCPM2 ကို run ပါမယ်။ "
+            "3–10 စက္ကန့် reference အသံနဲ့ အဲဒီအသံထဲက စာသားအတိအကျကို ထည့်ပါ။"
+        )
+        if not voxcpm_available():
+            st.warning(
+                "VoxCPM2 GPU backend မတွေ့ပါ။ requirements-gpu.txt ကို install လုပ်ပြီး "
+                "CUDA GPU host ပေါ်မှာ app ကို run ပါ။"
+            )
+        clone_reference_audio = st.file_uploader(
+            "Reference voice (WAV/MP3/FLAC)" if is_en else "Reference အသံ (WAV/MP3/FLAC)",
+            type=["wav", "mp3", "flac", "m4a"],
+            key="clone_reference_audio",
+        )
+        clone_reference_text = st.text_area(
+            "Exact words spoken in the reference clip" if is_en else "Reference အသံထဲမှာ ပြောထားတဲ့စာသားအတိအကျ",
+            height=90,
+            key="clone_reference_text",
+        )
+        use_custom_voice = st.checkbox(
+            "Use this cloned voice for the video" if is_en else "ဒီ clone အသံကို ဗီဒီယိုမှာသုံးမယ်",
+            key="use_custom_voice",
+        )
+        if use_custom_voice:
+            if clone_reference_audio is None:
+                st.info("Reference audio တင်ပြီး checkbox ကို ပြန်ရွေးပါ။")
+            elif not clone_reference_text.strip():
+                st.info("Reference audio ထဲက စာသားအတိအကျ ထည့်ပါ။")
+            else:
+                st.success("Custom VoxCPM2 voice ကို ရွေးထားပါတယ်။")
+
     # --- Recap Style Grid ---
     st.markdown(f"**{label_style}**")
     style_labels = [RECAP_STYLE_EN.get(s["name"], s["name"]) if is_en else s["name"] for s in RECAP_STYLES]
@@ -685,7 +737,7 @@ def main():
                         st.rerun()
 
     # Map selected to voice_id, style_data, emotion_data
-    voice_id = st.session_state.sel_voice
+    voice_id = "custom_voxcpm2" if use_custom_voice else st.session_state.sel_voice
     style_data = next((s for s in RECAP_STYLES if s["id"] == st.session_state.sel_style), RECAP_STYLES[0])
     emotion_data = next((e for e in EMOTIONS if e["id"] == st.session_state.sel_emotion), EMOTIONS[0])
 
@@ -724,6 +776,13 @@ def main():
         if not text_input or not video_file:
             st.error(label_error)
             return
+        if use_custom_voice and (clone_reference_audio is None or not clone_reference_text.strip()):
+            st.error(
+                "Reference audio နဲ့ reference transcript နှစ်ခုလုံးလိုပါတယ်။"
+                if not is_en else
+                "Custom voice requires reference audio and its exact transcript."
+            )
+            return
         
         st.session_state.processing_active = True
         
@@ -733,6 +792,7 @@ def main():
             "voice_id": voice_id,
             "final_speed": final_speed,
             "final_pitch": final_pitch,
+            "reference_text": clone_reference_text if use_custom_voice else "",
 
         }
         st.session_state.output_basename = make_output_basename(video_file.name)
@@ -750,6 +810,13 @@ def main():
         }
         for d in st.session_state.dirs.values():
             os.makedirs(d, exist_ok=True)
+
+        reference_audio_path = None
+        if use_custom_voice and clone_reference_audio is not None:
+            reference_audio_path = os.path.join(st.session_state.dirs["audio"], "voice_reference")
+            with open(reference_audio_path, "wb") as f:
+                f.write(clone_reference_audio.getbuffer())
+            st.session_state.inputs["reference_audio"] = reference_audio_path
 
         video_path = os.path.join(st.session_state.dirs["video"], "input_video.mp4")
         st.session_state.video_path = video_path
@@ -783,7 +850,15 @@ def main():
             step_start = time.time()
 
             progress_detail.markdown(f"🔊 Generating {num_paragraphs} TTS files in parallel...")
-            asyncio.run(generate_all_tts(paragraphs, dirs["audio"], inputs["voice_id"], inputs["final_speed"], inputs["final_pitch"]))
+            asyncio.run(generate_all_tts(
+                paragraphs,
+                dirs["audio"],
+                inputs["voice_id"],
+                inputs["final_speed"],
+                inputs["final_pitch"],
+                inputs.get("reference_audio"),
+                inputs.get("reference_text", ""),
+            ))
             progress_detail.markdown(f"✅ TTS complete ({num_paragraphs}/{num_paragraphs})")
 
             progress_detail.markdown(f"✂️ Splitting video into {num_paragraphs} segments...")

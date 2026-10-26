@@ -1,0 +1,3 @@
+# Install this file only on a CUDA GPU host (for example a Colab T4 runtime).
+voxcpm
+soundfile
