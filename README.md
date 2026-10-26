@@ -61,9 +61,15 @@ the checkbox before starting video processing. The model is loaded lazily and
 cached in memory. The app does not send the reference audio to a third-party
 API; it runs the model on the machine hosting the app.
 
-For a free Colab setup, use a T4 runtime and run this repository there. The
-runtime and public URL are temporary and may disconnect. A tablet can control
-the app through the browser, but the tablet itself does not run the model.
+For the recommended low-memory setup, keep Streamlit on the 500 MB host and
+run only `voice_clone_server.py` on a free Colab T4. The included
+`colab_voxcpm_backend.ipynb` installs the GPU dependencies, starts the API, and
+prints a temporary tunnel URL. Paste that URL and the notebook's token into the
+Custom Voice Clone panel. A tablet can control the Streamlit app through the
+browser; the tablet itself does not run the model.
+
+The Colab runtime and tunnel URL are temporary and may disconnect. This is for
+personal use and is not an always-on production API.
 
 3. Ensure FFmpeg is installed:
 ```bash
@@ -83,6 +89,9 @@ Run the Streamlit application:
 ```bash
 streamlit run app.py
 ```
+
+For the remote backend setup, open `colab_voxcpm_backend.ipynb` in Colab,
+select a T4 GPU, upload this repository as a ZIP, and run its cells in order.
 
 The application will open in your browser at `http://localhost:8501`
 

@@ -1,3 +1,7 @@
-# Install this file only on a CUDA GPU host (for example a Colab T4 runtime).
+# Install this file on the CUDA Colab backend and on a local GPU host.
 voxcpm
 soundfile
+fastapi
+uvicorn
+python-multipart
+requests

@@ -10,6 +10,7 @@ import os
 import subprocess
 import tempfile
 from functools import lru_cache
+from urllib.parse import urljoin
 
 
 @lru_cache(maxsize=1)
@@ -69,3 +70,32 @@ def generate_voxcpm2(text: str, reference_audio: str, reference_text: str, outpu
                 os.remove(clean_reference)
             except OSError:
                 pass
+
+
+def generate_remote_voxcpm2(
+    endpoint_url: str,
+    text: str,
+    reference_audio: str,
+    reference_text: str,
+    output_path: str,
+    token: str = "",
+    timeout: int = 900,
+) -> str:
+    """Call the companion Colab/FastAPI backend and save its WAV response."""
+    import requests
+
+    base = endpoint_url.strip().rstrip("/") + "/"
+    url = urljoin(base, "generate")
+    headers = {"X-Voice-Token": token} if token.strip() else {}
+    with open(reference_audio, "rb") as ref_file:
+        response = requests.post(
+            url,
+            data={"text": text, "reference_text": reference_text},
+            files={"reference_audio": (os.path.basename(reference_audio), ref_file, "audio/wav")},
+            headers=headers,
+            timeout=timeout,
+        )
+    response.raise_for_status()
+    with open(output_path, "wb") as output_file:
+        output_file.write(response.content)
+    return output_path

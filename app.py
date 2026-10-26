@@ -10,7 +10,7 @@ import shutil
 import gc
 import threading
 import base64
-from voice_clone import generate_voxcpm2, voxcpm_available
+from voice_clone import generate_remote_voxcpm2, generate_voxcpm2, voxcpm_available
 # ─────────────────────────────────────────────
 # Timer Utility
 # ─────────────────────────────────────────────
@@ -188,7 +188,7 @@ def make_output_basename(uploaded_name):
 # ─────────────────────────────────────────────
 
 async def generate_all_tts(paragraphs, audio_dir, voice_id, speed, pitch,
-                           reference_audio=None, reference_text=""):
+                           reference_audio=None, reference_text="", backend_url="", backend_token=""):
     """Generate TTS for all paragraphs in parallel."""
     if voice_id == "custom_voxcpm2":
         if not reference_audio:
@@ -196,12 +196,13 @@ async def generate_all_tts(paragraphs, audio_dir, voice_id, speed, pitch,
         # Keep VoxCPM2 generation sequential: one GPU model is shared by all
         # paragraphs and concurrent calls can exhaust VRAM or corrupt output.
         for i, paragraph in enumerate(paragraphs):
-            generate_voxcpm2(
-                paragraph,
-                reference_audio,
-                reference_text,
-                os.path.join(audio_dir, f"audio_{i}.wav"),
-            )
+            output_path = os.path.join(audio_dir, f"audio_{i}.wav")
+            if backend_url.strip():
+                generate_remote_voxcpm2(
+                    backend_url, paragraph, reference_audio, reference_text, output_path, backend_token
+                )
+            else:
+                generate_voxcpm2(paragraph, reference_audio, reference_text, output_path)
         return
 
     tasks = []
@@ -665,6 +666,7 @@ def main():
                         st.rerun()
 
     # --- Optional VoxCPM2 custom voice ---
+    clone_backend_url = ""
     with st.expander("🧬 Custom Voice Clone (VoxCPM2)" if is_en else "🧬 ကိုယ်ပိုင်အသံ Clone (VoxCPM2)"):
         st.caption(
             "Runs on the GPU host where this app is deployed. A 3–10 second reference "
@@ -678,6 +680,19 @@ def main():
                 "VoxCPM2 GPU backend မတွေ့ပါ။ requirements-gpu.txt ကို install လုပ်ပြီး "
                 "CUDA GPU host ပေါ်မှာ app ကို run ပါ။"
             )
+            clone_backend_url = st.text_input(
+                "Remote Colab VoxCPM2 endpoint (optional)" if is_en else "Remote Colab VoxCPM2 endpoint (optional)",
+                placeholder="https://your-colab-tunnel.example.com",
+                help="Paste the temporary public URL from the companion Colab backend.",
+                key="clone_backend_url",
+            ).strip()
+            clone_backend_token = st.text_input(
+                "Remote backend token (optional)" if is_en else "Remote backend token (optional)",
+                type="password",
+                key="clone_backend_token",
+            ).strip()
+        else:
+            clone_backend_token = ""
         clone_reference_audio = st.file_uploader(
             "Reference voice (WAV/MP3/FLAC)" if is_en else "Reference အသံ (WAV/MP3/FLAC)",
             type=["wav", "mp3", "flac", "m4a"],
@@ -699,6 +714,8 @@ def main():
                 st.info("Reference audio ထဲက စာသားအတိအကျ ထည့်ပါ။")
             else:
                 st.success("Custom VoxCPM2 voice ကို ရွေးထားပါတယ်။")
+                if not voxcpm_available() and not clone_backend_url:
+                    st.error("Local GPU မရှိပါ။ Remote Colab endpoint URL ထည့်ပါ။")
 
     # --- Recap Style Grid ---
     st.markdown(f"**{label_style}**")
@@ -783,6 +800,13 @@ def main():
                 "Custom voice requires reference audio and its exact transcript."
             )
             return
+        if use_custom_voice and not voxcpm_available() and not clone_backend_url:
+            st.error(
+                "Remote Colab VoxCPM2 endpoint URL ထည့်ပါ။"
+                if not is_en else
+                "Provide the remote Colab VoxCPM2 endpoint URL."
+            )
+            return
         
         st.session_state.processing_active = True
         
@@ -793,6 +817,8 @@ def main():
             "final_speed": final_speed,
             "final_pitch": final_pitch,
             "reference_text": clone_reference_text if use_custom_voice else "",
+            "backend_url": clone_backend_url if use_custom_voice else "",
+            "backend_token": clone_backend_token if use_custom_voice else "",
 
         }
         st.session_state.output_basename = make_output_basename(video_file.name)
@@ -858,6 +884,8 @@ def main():
                 inputs["final_pitch"],
                 inputs.get("reference_audio"),
                 inputs.get("reference_text", ""),
+                inputs.get("backend_url", ""),
+                inputs.get("backend_token", ""),
             ))
             progress_detail.markdown(f"✅ TTS complete ({num_paragraphs}/{num_paragraphs})")
 
