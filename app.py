@@ -959,12 +959,13 @@ def main():
             step_status_placeholder.markdown(f"**Step 2/3:** Speed-adjusting {num_paragraphs} segments...")
             step_start = time.time()
             adjusted_segments = [None] * num_paragraphs
+            audio_extension = "wav" if inputs["voice_id"] == "custom_voxcpm2" else "mp3"
             with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
                 futures = {
                     executor.submit(
                         speed_adjust_segment,
                         i, video_segments[i],
-                        os.path.join(dirs["audio"], f"audio_{i}.mp3"),
+                        os.path.join(dirs["audio"], f"audio_{i}.{audio_extension}"),
                         dirs["adjusted"]
                     ): i for i in range(num_paragraphs)
                 }
@@ -977,6 +978,10 @@ def main():
                     done = sum(1 for x in adjusted_segments if x is not None)
                     progress_bar.progress(0.33 + 0.33 * done / num_paragraphs)
                     progress_detail.markdown(f"⚡ Segment {done}/{num_paragraphs} speed adjusted")
+
+            failed_segments = [i + 1 for i, path in enumerate(adjusted_segments) if path is None]
+            if failed_segments:
+                raise RuntimeError(f"Speed adjustment failed for segment(s): {failed_segments}")
 
             gc.collect()
             step3_elapsed = time.time() - step_start
