@@ -96,6 +96,27 @@ def generate_remote_voxcpm2(
             timeout=timeout,
         )
     response.raise_for_status()
-    with open(output_path, "wb") as output_file:
-        output_file.write(response.content)
+    if not response.content or len(response.content) < 64:
+        raise RuntimeError("Remote VoxCPM2 returned an empty audio response.")
+
+    # Re-mux/normalize the response before FFmpeg's video pipeline reads it.
+    # This also rejects an HTML/proxy response that happened to return HTTP 200.
+    fd, raw_path = tempfile.mkstemp(suffix=".wav")
+    os.close(fd)
+    try:
+        with open(raw_path, "wb") as raw_file:
+            raw_file.write(response.content)
+        result = subprocess.run(
+            ["ffmpeg", "-y", "-i", raw_path, "-ac", "1", "-ar", "16000", output_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        if result.returncode != 0 or not os.path.exists(output_path) or os.path.getsize(output_path) < 128:
+            raise RuntimeError(f"Remote audio could not be decoded: {result.stderr[-500:]}")
+    finally:
+        try:
+            os.remove(raw_path)
+        except OSError:
+            pass
     return output_path

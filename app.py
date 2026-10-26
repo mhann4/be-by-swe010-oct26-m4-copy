@@ -352,10 +352,15 @@ def get_video_resolution(video_path):
 
 
 def get_audio_duration(audio_path):
+    if not audio_path or not os.path.exists(audio_path) or os.path.getsize(audio_path) < 128:
+        raise ValueError(f"Audio file is missing or empty: {audio_path}")
     cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
            '-of', 'default=noprint_wrappers=1:nokey=1', audio_path]
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    return float(result.stdout.strip())
+    duration_text = result.stdout.strip()
+    if result.returncode != 0 or not duration_text:
+        raise ValueError(f"Could not read audio duration for {audio_path}: {result.stderr.strip()}")
+    return float(duration_text)
 
 
 # ─────────────────────────────────────────────
